@@ -1,0 +1,67 @@
+services:
+  # 1. ฐานข้อมูล PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: news_postgres_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: news_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d news_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - news_network
+
+  # 2. เซิร์ฟเวอร์ Backend (Node.js Express + Sequelize)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: news_backend_api
+    restart: unless-stopped
+    environment:
+      PORT: 5000
+      DATABASE_URL: postgres://postgres:postgres@db:5432/news_db
+      DB_SSL: "false"
+      CLIENT_URL: "*"
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "node seeders/seedNews.js && node index.js"
+    networks:
+      - news_network
+
+  # 3. หน้าเว็บ Frontend (React + Vite + Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:5000
+    container_name: news_frontend_web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - news_network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  news_network:
+    driver: bridge

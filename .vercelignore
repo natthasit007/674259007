@@ -1,0 +1,8 @@
+backend/
+node_modules
+.env
+.git
+.github
+database.sqlite
+docker-compose.yml
+*.log
